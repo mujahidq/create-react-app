@@ -37,6 +37,7 @@ const eslint = require('eslint');
 const getCacheIdentifier = require('react-dev-utils/getCacheIdentifier');
 // @remove-on-eject-end
 const postcssNormalize = require('postcss-normalize');
+const postcssLostGrid = require('lost');
 
 const appPackageJson = require(paths.appPackageJson);
 
@@ -64,6 +65,9 @@ const sassModuleRegex = /\.module\.(scss|sass)$/;
 module.exports = function(webpackEnv) {
   const isEnvDevelopment = webpackEnv === 'development';
   const isEnvProduction = webpackEnv === 'production';
+
+  // force build to use local settings via REACT_APP_BUILD_LOCAL_PROD=true
+  const buildLocalProd = process.env.REACT_APP_BUILD_LOCAL_PROD === 'true';
 
   // Variable used for enabling profiling in Production
   // passed into alias object. Uses a flag if passed into the build command
@@ -122,6 +126,7 @@ module.exports = function(webpackEnv) {
             // so that it honors browserslist config in package.json
             // which in turn let's users customize the target behavior as per their needs.
             postcssNormalize(),
+            postcssLostGrid,
           ],
           sourceMap: isEnvProduction && shouldUseSourceMap,
         },
@@ -270,8 +275,8 @@ module.exports = function(webpackEnv) {
               : false,
           },
           cssProcessorPluginOptions: {
-              preset: ['default', { minifyFontValues: { removeQuotes: false } }]
-          }
+            preset: ['default', { minifyFontValues: { removeQuotes: false } }],
+          },
         }),
       ],
       // Automatically split vendor and commons
@@ -279,7 +284,7 @@ module.exports = function(webpackEnv) {
       // https://medium.com/webpack/webpack-4-code-splitting-chunk-graph-and-the-splitchunks-optimization-be739a861366
       splitChunks: {
         chunks: 'all',
-        name: false,
+        name: true,
       },
       // Keep the runtime chunk separated to enable long term caching
       // https://twitter.com/wSokra/status/969679223278505985
@@ -586,21 +591,28 @@ module.exports = function(webpackEnv) {
           {},
           {
             inject: true,
-            template: paths.appHtml,
+            filename:
+              isEnvDevelopment || buildLocalProd
+                ? 'index.html'
+                : `${paths.appCShtmlOutput}`,
+            template:
+              isEnvDevelopment || buildLocalProd
+                ? `!!ejs-compiled-loader!${paths.appHtml}`
+                : `!!ejs-compiled-loader!${paths.appCShtml}`,
           },
           isEnvProduction
             ? {
                 minify: {
                   removeComments: true,
-                  collapseWhitespace: true,
-                  removeRedundantAttributes: true,
-                  useShortDoctype: true,
-                  removeEmptyAttributes: true,
-                  removeStyleLinkTypeAttributes: true,
+                  collapseWhitespace: false,
+                  removeRedundantAttributes: false,
+                  useShortDoctype: false,
+                  removeEmptyAttributes: false,
+                  removeStyleLinkTypeAttributes: false,
                   keepClosingSlash: true,
-                  minifyJS: true,
-                  minifyCSS: true,
-                  minifyURLs: true,
+                  minifyJS: false,
+                  minifyCSS: false,
+                  minifyURLs: false,
                 },
               }
             : undefined
@@ -718,7 +730,7 @@ module.exports = function(webpackEnv) {
             '!**/src/setupProxy.*',
             '!**/src/setupTests.*',
           ],
-          silent: true,
+          silent: false,
           // The formatter is invoked directly in WebpackDevServerUtils during development
           formatter: isEnvProduction ? typescriptFormatter : undefined,
         }),
